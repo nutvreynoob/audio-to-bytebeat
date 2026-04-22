@@ -1,0 +1,71 @@
+import os
+import numpy as np
+import pydub
+from time import time
+
+# ... (keep your aread and awrite functions the same) ...
+
+def get_summary(original_len, compressed_len, duration):
+    ratio = (compressed_len / original_len) * 100
+    return f"""
++-----------------------+-----------------------+
+| Metric                | Value                 |
++-----------------------+-----------------------+
+| Duration              | {duration:.2f} seconds    |
+| Raw Samples           | {original_len}          |
+| Compressed Size       | {compressed_len} bytes        |
+| Compression Ratio     | {ratio:.2f}%               |
++-----------------------+-----------------------+
+"""
+
+# Logic for character escaping
+def get_safe_char(v):
+    if v == 92: return "\\\\"
+    if v == 96: return "\\`"
+    if v == 10: return "\\n"
+    if v == 13: return "\\r"
+    if 32 <= v <= 126 or v > 160:
+        return chr(v)
+    return f"\\x{v:02x}"
+
+# Main Process
+input_mp3 = input("Enter mp3 file: ")
+samplerate = int(input("Sample rate (Hz): "))
+loop = input("Loop? (y/n) ") == 'y'
+
+# FFMPEG Call
+os.system(f'ffmpeg -y -loglevel error -i "{input_mp3}" -ac 1 -ar {samplerate} temp.wav')
+
+# Process
+sr, vals = aread("temp.wav", normalized=True)
+vals = ((vals + 1) / 2 * 255).astype(np.uint8)
+
+final = ""
+i = 0
+start_time = time()
+
+while i < len(vals):
+    current_val = vals[i]
+    count = 0
+    while i < len(vals) and vals[i] == current_val:
+        count += 1
+        i += 1
+    
+    char = get_safe_char(current_val)
+    # Compression check: Is ${r('a',10)} shorter than 'aaaaaaaaaa'?
+    r_str = f"${{r(`{char}`,{count})}}"
+    if count > 1 and len(r_str) < (len(char) * count):
+        final += r_str
+    else:
+        final += char * count
+
+# Wrap in Bytebeat function
+template = "z=0,r=(b,c)=>b.repeat(c),a=`{}`;return ((t,sr)=>{{z+=((a.charCodeAt((t*{})%a.length)/(255/2)-1)-z)/Math.max(sr/{},1);return z}})"
+output = template.format(final, samplerate, samplerate)
+
+with open("output.txt", "w", encoding="utf-8") as f:
+    f.write(output)
+
+print(get_summary(len(vals), len(final), len(vals)/samplerate))
+print(f"Success! Saved to output.txt in {time()-start_time:.2f}s")
+os.remove("temp.wav")
