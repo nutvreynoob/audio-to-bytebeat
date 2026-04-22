@@ -1,29 +1,60 @@
-<h1>Audio to Bytebeat</h1>
+<h1>Audio → Bytebeat</h1>
 
-<input type="file" id="file">
-<button onclick="upload()">Convert</button>
+<input type="file" id="file"><br><br>
+
+<!-- LOOP -->
+<p>Loop:</p>
+<button onclick="setLoop(true)">Yes</button>
+<button onclick="setLoop(false)">No</button>
+
+<!-- SAMPLE RATE -->
+<p>Sample Rate:</p>
+<input type="number" id="rate" value="8000"><br><br>
+
+<!-- FORMAT -->
+<p>Format:</p>
+<button onclick="setFormat('f')">Formatted</button>
+<button onclick="setFormat('m')">Mixed</button>
+<button onclick="setFormat('s')">Special</button>
+
+<br><br>
+<button onclick="convert()">Start Job</button>
 
 <pre id="log"></pre>
 
 <script>
-async function upload() {
+let loop = false;
+let format = "f";
+
+function setLoop(val) {
+    loop = val;
+    document.getElementById("log").innerText = "Loop: " + val;
+}
+
+function setFormat(val) {
+    format = val;
+    document.getElementById("log").innerText = "Format: " + val;
+}
+
+async function convert() {
     let file = document.getElementById("file").files[0];
+
     let form = new FormData();
     form.append("file", file);
+    form.append("samplerate", document.getElementById("rate").value);
+    form.append("loop", loop);
+    form.append("format", format);
 
-    let res = await fetch("http://localhost:5000/upload", {
+    let res = await fetch("https://your-backend-url/convert", {
         method: "POST",
         body: form
     });
 
-    if (res.ok) {
-        let blob = await res.blob();
-        let a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "output.txt";
-        a.click();
-    } else {
-        document.getElementById("log").innerText = "Error";
-    }
+    let blob = await res.blob();
+
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "output.txt";
+    a.click();
 }
 </script>
