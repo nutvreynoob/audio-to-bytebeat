@@ -17,10 +17,10 @@
 <body>
     <div class="box">
         <h1>AUDIO >> BYTEBEAT</h1>
-        <label>Select Audio:</label>
+        <label>Select Audio File:</label>
         <input type="file" id="audioInput" accept="audio/*">
         
-        <label>Sample Rate (Hz):</label>
+        <label>Target Sample Rate (Hz):</label>
         <input type="number" id="srInput" value="8000">
         
         <label>Looping:</label>
@@ -29,28 +29,26 @@
             <option value="n">Disabled</option>
         </select>
 
-        <button onclick="processAudio()">Run Conversion</button>
+        <button onclick="processAudio()">Start Conversion</button>
         
-        <div id="status">Ready.</div>
+        <div id="status">System Ready.</div>
         <textarea id="output" readonly placeholder="Output code will appear here..."></textarea>
     </div>
 
     <script>
         async function processAudio() {
             const file = document.getElementById('audioInput').files[0];
-            if (!file) return alert("Select a file first!");
+            if (!file) return alert("Please select a file!");
 
             const sr = parseInt(document.getElementById('srInput').value);
             const loop = document.getElementById('loopInput').value === 'y';
             const status = document.getElementById('status');
             
-            status.innerText = "Processing audio...";
-            
+            status.innerText = "Decoding audio data...";
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const arrayBuffer = await file.arrayBuffer();
             const decodedData = await audioCtx.decodeAudioData(arrayBuffer);
             
-            // Resample to the target sample rate
             const offlineCtx = new OfflineAudioContext(1, decodedData.duration * sr, sr);
             const source = offlineCtx.createBufferSource();
             source.buffer = decodedData;
@@ -60,7 +58,7 @@
             const renderedBuffer = await offlineCtx.startRendering();
             const vals = renderedBuffer.getChannelData(0);
             
-            status.innerText = "Encoding string...";
+            status.innerText = "Generating Bytebeat string...";
             let final = "";
             for (let i = 0; i < vals.length; i++) {
                 let v = Math.floor(((vals[i] + 1) / 2) * 255);
@@ -73,14 +71,7 @@
             const code = `z=0,a=\`${final}\`;return ((t,sr)=>{z+=((a.charCodeAt((t*${sr})%a.length)/(255/2)-1)-z)/Math.max(sr/${sr},1);return z})`;
             
             document.getElementById('output').value = code;
-            status.innerText = "Done! Downloading...";
-            
-            const blob = new Blob([code], {type: 'text/plain'});
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = "bytebeat_output.txt";
-            a.click();
+            status.innerText = "Conversion Complete!";
         }
     </script>
 </body>
