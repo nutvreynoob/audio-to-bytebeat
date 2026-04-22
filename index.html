@@ -1,77 +1,63 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
     <title>Audio to Bytebeat Converter</title>
     <style>
-        body { font-family: 'Courier New', monospace; background: #1a1a1a; color: #0f0; padding: 20px; display: flex; justify-content: center; }
-        .box { border: 2px solid #0f0; padding: 20px; border-radius: 10px; width: 100%; max-width: 500px; background: #000; }
-        h1 { font-size: 1.5rem; text-align: center; border-bottom: 1px solid #0f0; padding-bottom: 10px; }
-        input, select, button { background: #000; color: #0f0; border: 1px solid #0f0; padding: 10px; margin: 10px 0; width: 100%; box-sizing: border-box; }
-        button { cursor: pointer; font-weight: bold; text-transform: uppercase; }
-        button:hover { background: #0f0; color: #000; }
-        #status { margin: 10px 0; font-size: 0.9rem; color: #888; }
-        #output { width: 100%; height: 150px; background: #111; color: #0f0; border: 1px solid #333; margin-top: 10px; font-size: 0.8rem; }
+        body { font-family: 'Courier New', monospace; background: #111; color: #0f0; padding: 20px; text-align: center; }
+        .container { border: 2px solid #0f0; padding: 20px; display: inline-block; background: #000; border-radius: 10px; }
+        input, button, select { background: #000; color: #0f0; border: 1px solid #0f0; padding: 10px; margin: 10px; }
+        button:hover { background: #0f0; color: #000; cursor: pointer; }
+        #status { color: #888; margin: 10px; }
     </style>
 </head>
 <body>
-    <div class="box">
-        <h1>AUDIO >> BYTEBEAT</h1>
-        <label>Select Audio File:</label>
-        <input type="file" id="audioInput" accept="audio/*">
-        
-        <label>Target Sample Rate (Hz):</label>
-        <input type="number" id="srInput" value="8000">
-        
-        <label>Looping:</label>
-        <select id="loopInput">
-            <option value="y">Enabled</option>
-            <option value="n">Disabled</option>
-        </select>
-
-        <button onclick="processAudio()">Start Conversion</button>
-        
-        <div id="status">System Ready.</div>
-        <textarea id="output" readonly placeholder="Output code will appear here..."></textarea>
+    <div class="container">
+        <h1>AUDIO TO BYTEBEAT</h1>
+        <input type="file" id="audioInput" accept="audio/*"><br>
+        <label>Sample Rate:</label>
+        <input type="number" id="srInput" value="8000" style="width: 80px;"><br>
+        <button onclick="process()">CONVERT TO CODE</button>
+        <div id="status">Ready.</div>
     </div>
 
     <script>
-        async function processAudio() {
+        async function process() {
             const file = document.getElementById('audioInput').files[0];
-            if (!file) return alert("Please select a file!");
-
+            if (!file) return alert("Select a file!");
             const sr = parseInt(document.getElementById('srInput').value);
-            const loop = document.getElementById('loopInput').value === 'y';
             const status = document.getElementById('status');
             
-            status.innerText = "Decoding audio data...";
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const arrayBuffer = await file.arrayBuffer();
-            const decodedData = await audioCtx.decodeAudioData(arrayBuffer);
-            
-            const offlineCtx = new OfflineAudioContext(1, decodedData.duration * sr, sr);
-            const source = offlineCtx.createBufferSource();
-            source.buffer = decodedData;
-            source.connect(offlineCtx.destination);
-            source.start();
-            
-            const renderedBuffer = await offlineCtx.startRendering();
-            const vals = renderedBuffer.getChannelData(0);
-            
-            status.innerText = "Generating Bytebeat string...";
+            status.innerText = "Decoding...";
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const buffer = await ctx.decodeAudioData(await file.arrayBuffer());
+            const data = buffer.getChannelData(0); // Mono
+
+            status.innerText = "Compressing (RLE)...";
             let final = "";
-            for (let i = 0; i < vals.length; i++) {
-                let v = Math.floor(((vals[i] + 1) / 2) * 255);
-                let char = String.fromCharCode(v);
-                if (char === "`") char = "\\`";
-                if (char === "\\") char = "\\\\";
-                final += char;
+            let i = 0;
+            
+            while (i < data.length) {
+                let v = Math.floor(((data[i] + 1) / 2) * 255);
+                let count = 0;
+                while (i < data.length && Math.floor(((data[i] + 1) / 2) * 255) === v) {
+                    count++;
+                    i++;
+                }
+                
+                let char = v === 92 ? "\\\\" : (v === 96 ? "\\`" : `\\x${v.toString(16).padStart(2, '0')}`);
+                let rStr = `\${r(\`${char}\`,${count})}`;
+                final += (count > 5) ? rStr : char.repeat(count);
             }
 
-            const code = `z=0,a=\`${final}\`;return ((t,sr)=>{z+=((a.charCodeAt((t*${sr})%a.length)/(255/2)-1)-z)/Math.max(sr/${sr},1);return z})`;
+            const output = `z=0,r=(b,c)=>b.repeat(c),a=\`${final}\`;return ((t,sr)=>{z+=((a.charCodeAt((t*${sr})%a.length)/(255/2)-1)-z)/Math.max(sr/${sr},1);return z})`;
             
-            document.getElementById('output').value = code;
-            status.innerText = "Conversion Complete!";
+            const blob = new Blob([output], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "bytebeat_code.txt";
+            a.click();
+            status.innerText = "Done!";
         }
     </script>
 </body>
