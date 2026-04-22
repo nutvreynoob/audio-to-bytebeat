@@ -1,26 +1,93 @@
-<h1>Audio → Bytebeat</h1>
+<!DOCTYPE html>
+<html>
+<head>
+<title>Audio to Bytebeat</title>
 
-<input type="file" id="file"><br><br>
+<style>
+body {
+    background: #0f172a;
+    color: white;
+    font-family: Arial;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
 
-<!-- LOOP -->
-<p>Loop:</p>
-<button onclick="setLoop(true)">Yes</button>
-<button onclick="setLoop(false)">No</button>
+.container {
+    background: #1e293b;
+    padding: 25px;
+    border-radius: 15px;
+    width: 400px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
 
-<!-- SAMPLE RATE -->
-<p>Sample Rate:</p>
-<input type="number" id="rate" value="8000"><br><br>
+h1 {
+    text-align: center;
+}
 
-<!-- FORMAT -->
-<p>Format:</p>
-<button onclick="setFormat('f')">Formatted</button>
-<button onclick="setFormat('m')">Mixed</button>
-<button onclick="setFormat('s')">Special</button>
+button {
+    padding: 10px;
+    margin: 5px;
+    border-radius: 8px;
+    border: none;
+    background: #334155;
+    color: white;
+    cursor: pointer;
+}
 
-<br><br>
-<button onclick="convert()">Start Job</button>
+button:hover {
+    background: #475569;
+}
 
-<pre id="log"></pre>
+.selected {
+    background: #22c55e !important;
+}
+
+input[type="number"] {
+    width: 100%;
+    padding: 8px;
+    border-radius: 8px;
+    border: none;
+    margin-top: 5px;
+}
+
+.convert {
+    width: 100%;
+    margin-top: 15px;
+    background: #3b82f6;
+}
+
+.convert:hover {
+    background: #2563eb;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+    <h1>Audio → Bytebeat</h1>
+
+    <input type="file" id="file"><br><br>
+
+    <!-- LOOP -->
+    <p>Loop</p>
+    <button onclick="setLoop(true)" id="loop-yes">Yes</button>
+    <button onclick="setLoop(false)" id="loop-no" class="selected">No</button>
+
+    <!-- SAMPLE RATE -->
+    <p>Sample Rate (Hz)</p>
+    <input type="number" id="rate" value="8000">
+
+    <!-- FORMAT -->
+    <p>Format</p>
+    <button onclick="setFormat('f')" data-format="f" class="selected">Formatted</button>
+    <button onclick="setFormat('m')" data-format="m">Mixed</button>
+    <button onclick="setFormat('s')" data-format="s">Special</button>
+
+    <button class="convert" onclick="convert()">Convert</button>
+</div>
 
 <script>
 let loop = false;
@@ -28,16 +95,23 @@ let format = "f";
 
 function setLoop(val) {
     loop = val;
-    document.getElementById("log").innerText = "Loop: " + val;
+    document.getElementById("loop-yes").classList.toggle("selected", val);
+    document.getElementById("loop-no").classList.toggle("selected", !val);
 }
 
 function setFormat(val) {
     format = val;
-    document.getElementById("log").innerText = "Format: " + val;
+    document.querySelectorAll("[data-format]").forEach(b => b.classList.remove("selected"));
+    document.querySelector(`[data-format="${val}"]`).classList.add("selected");
 }
 
 async function convert() {
     let file = document.getElementById("file").files[0];
+
+    if (!file) {
+        alert("Select a file first!");
+        return;
+    }
 
     let form = new FormData();
     form.append("file", file);
@@ -58,3 +132,6 @@ async function convert() {
     a.click();
 }
 </script>
+
+</body>
+</html>
