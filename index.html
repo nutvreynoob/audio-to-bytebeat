@@ -1,71 +1,87 @@
-import os
-import numpy as np
-import pydub
-from time import time
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Audio to Bytebeat Converter</title>
+    <style>
+        body { font-family: 'Courier New', monospace; background: #1a1a1a; color: #0f0; padding: 20px; display: flex; justify-content: center; }
+        .box { border: 2px solid #0f0; padding: 20px; border-radius: 10px; width: 100%; max-width: 500px; background: #000; }
+        h1 { font-size: 1.5rem; text-align: center; border-bottom: 1px solid #0f0; padding-bottom: 10px; }
+        input, select, button { background: #000; color: #0f0; border: 1px solid #0f0; padding: 10px; margin: 10px 0; width: 100%; box-sizing: border-box; }
+        button { cursor: pointer; font-weight: bold; text-transform: uppercase; }
+        button:hover { background: #0f0; color: #000; }
+        #status { margin: 10px 0; font-size: 0.9rem; color: #888; }
+        #output { width: 100%; height: 150px; background: #111; color: #0f0; border: 1px solid #333; margin-top: 10px; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>AUDIO >> BYTEBEAT</h1>
+        <label>Select Audio:</label>
+        <input type="file" id="audioInput" accept="audio/*">
+        
+        <label>Sample Rate (Hz):</label>
+        <input type="number" id="srInput" value="8000">
+        
+        <label>Looping:</label>
+        <select id="loopInput">
+            <option value="y">Enabled</option>
+            <option value="n">Disabled</option>
+        </select>
 
-# ... (keep your aread and awrite functions the same) ...
+        <button onclick="processAudio()">Run Conversion</button>
+        
+        <div id="status">Ready.</div>
+        <textarea id="output" readonly placeholder="Output code will appear here..."></textarea>
+    </div>
 
-def get_summary(original_len, compressed_len, duration):
-    ratio = (compressed_len / original_len) * 100
-    return f"""
-+-----------------------+-----------------------+
-| Metric                | Value                 |
-+-----------------------+-----------------------+
-| Duration              | {duration:.2f} seconds    |
-| Raw Samples           | {original_len}          |
-| Compressed Size       | {compressed_len} bytes        |
-| Compression Ratio     | {ratio:.2f}%               |
-+-----------------------+-----------------------+
-"""
+    <script>
+        async function processAudio() {
+            const file = document.getElementById('audioInput').files[0];
+            if (!file) return alert("Select a file first!");
 
-# Logic for character escaping
-def get_safe_char(v):
-    if v == 92: return "\\\\"
-    if v == 96: return "\\`"
-    if v == 10: return "\\n"
-    if v == 13: return "\\r"
-    if 32 <= v <= 126 or v > 160:
-        return chr(v)
-    return f"\\x{v:02x}"
+            const sr = parseInt(document.getElementById('srInput').value);
+            const loop = document.getElementById('loopInput').value === 'y';
+            const status = document.getElementById('status');
+            
+            status.innerText = "Processing audio...";
+            
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const arrayBuffer = await file.arrayBuffer();
+            const decodedData = await audioCtx.decodeAudioData(arrayBuffer);
+            
+            // Resample to the target sample rate
+            const offlineCtx = new OfflineAudioContext(1, decodedData.duration * sr, sr);
+            const source = offlineCtx.createBufferSource();
+            source.buffer = decodedData;
+            source.connect(offlineCtx.destination);
+            source.start();
+            
+            const renderedBuffer = await offlineCtx.startRendering();
+            const vals = renderedBuffer.getChannelData(0);
+            
+            status.innerText = "Encoding string...";
+            let final = "";
+            for (let i = 0; i < vals.length; i++) {
+                let v = Math.floor(((vals[i] + 1) / 2) * 255);
+                let char = String.fromCharCode(v);
+                if (char === "`") char = "\\`";
+                if (char === "\\") char = "\\\\";
+                final += char;
+            }
 
-# Main Process
-input_mp3 = input("Enter mp3 file: ")
-samplerate = int(input("Sample rate (Hz): "))
-loop = input("Loop? (y/n) ") == 'y'
-
-# FFMPEG Call
-os.system(f'ffmpeg -y -loglevel error -i "{input_mp3}" -ac 1 -ar {samplerate} temp.wav')
-
-# Process
-sr, vals = aread("temp.wav", normalized=True)
-vals = ((vals + 1) / 2 * 255).astype(np.uint8)
-
-final = ""
-i = 0
-start_time = time()
-
-while i < len(vals):
-    current_val = vals[i]
-    count = 0
-    while i < len(vals) and vals[i] == current_val:
-        count += 1
-        i += 1
-    
-    char = get_safe_char(current_val)
-    # Compression check: Is ${r('a',10)} shorter than 'aaaaaaaaaa'?
-    r_str = f"${{r(`{char}`,{count})}}"
-    if count > 1 and len(r_str) < (len(char) * count):
-        final += r_str
-    else:
-        final += char * count
-
-# Wrap in Bytebeat function
-template = "z=0,r=(b,c)=>b.repeat(c),a=`{}`;return ((t,sr)=>{{z+=((a.charCodeAt((t*{})%a.length)/(255/2)-1)-z)/Math.max(sr/{},1);return z}})"
-output = template.format(final, samplerate, samplerate)
-
-with open("output.txt", "w", encoding="utf-8") as f:
-    f.write(output)
-
-print(get_summary(len(vals), len(final), len(vals)/samplerate))
-print(f"Success! Saved to output.txt in {time()-start_time:.2f}s")
-os.remove("temp.wav")
+            const code = `z=0,a=\`${final}\`;return ((t,sr)=>{z+=((a.charCodeAt((t*${sr})%a.length)/(255/2)-1)-z)/Math.max(sr/${sr},1);return z})`;
+            
+            document.getElementById('output').value = code;
+            status.innerText = "Done! Downloading...";
+            
+            const blob = new Blob([code], {type: 'text/plain'});
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = "bytebeat_output.txt";
+            a.click();
+        }
+    </script>
+</body>
+</html>
